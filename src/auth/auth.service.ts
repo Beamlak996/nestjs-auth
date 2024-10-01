@@ -17,7 +17,7 @@ export class AuthService {
   ) {}
 
   async login(user: User, response: Response) {
-    const expiresAccessToken = new Date()
+    const expiresAccessToken = new Date();
     expiresAccessToken.setMilliseconds(
       expiresAccessToken.getTime() +
         parseInt(
@@ -27,7 +27,7 @@ export class AuthService {
         ),
     );
 
-    const expiresRefreshToken = new Date()
+    const expiresRefreshToken = new Date();
     expiresRefreshToken.setMilliseconds(
       expiresRefreshToken.getTime() +
         parseInt(
@@ -38,8 +38,8 @@ export class AuthService {
     );
 
     const tokenPayload: TokenPayload = {
-        userId: user._id.toHexString()
-    }
+      userId: user._id.toHexString(),
+    };
 
     const accessToken = this.jwtService.sign(tokenPayload, {
       secret: this.configService.getOrThrow('JWT_ACCESS_TOKEN_SECRET'),
@@ -51,22 +51,25 @@ export class AuthService {
       expiresIn: `${this.configService.getOrThrow('JWT_REFRESH_TOKEN_EXPIRATION_MS')}ms`,
     });
 
-    await this.userService.updateUser({_id: user._id}, {$set: { refreshToken: await hash(refreshToken, 10) }})
-
-    response.cookie('Authentication', accessToken, {
-        httpOnly: true,
-        secure: this.configService.get('NODE_ENV') === 'production',
-        expires: expiresAccessToken
-    })
+    await this.userService.updateUser(
+      { _id: user._id },
+      { $set: { refreshToken: await hash(refreshToken, 10) } },
+    );
 
     response.cookie('Refresh', refreshToken, {
       httpOnly: true,
       secure: this.configService.get('NODE_ENV') === 'production',
       expires: expiresRefreshToken,
     });
+
+    return response.status(200).json({
+      user: {
+        id: user._id,
+        email: user.email,
+      },
+      accessToken,
+    });
   }
-
-
 
   async verifyUser(email: string, password: string) {
     try {
@@ -86,16 +89,16 @@ export class AuthService {
 
   async verifyUserRefreshToken(refreshToken: string, userId: string) {
     try {
-      const user = await this.userService.getUser({_id: userId})
-      const authenticated = await compare(refreshToken, user.refreshToken) 
+      const user = await this.userService.getUser({ _id: userId });
+      const authenticated = await compare(refreshToken, user.refreshToken);
 
-      if(!authenticated) {
-        throw new UnauthorizedException()
+      if (!authenticated) {
+        throw new UnauthorizedException();
       }
 
-      return user
+      return user;
     } catch (error) {
-      throw new UnauthorizedException('Refresh token is not valid.')
+      throw new UnauthorizedException('Refresh token is not valid.');
     }
   }
 }
