@@ -17,58 +17,17 @@ export class AuthService {
   ) {}
 
   async login(user: User, response: Response) {
-    const expiresAccessToken = new Date();
-    expiresAccessToken.setMilliseconds(
-      expiresAccessToken.getTime() +
-        parseInt(
-          this.configService.getOrThrow<string>(
-            'JWT_ACCESS_TOKEN_EXPIRATION_MS',
-          ),
-        ),
-    );
-
-    const expiresRefreshToken = new Date();
-    expiresRefreshToken.setMilliseconds(
-      expiresRefreshToken.getTime() +
-        parseInt(
-          this.configService.getOrThrow<string>(
-            'JWT_REFRESH_TOKEN_EXPIRATION_MS',
-          ),
-        ),
-    );
-
-    const tokenPayload: TokenPayload = {
-      userId: user._id.toHexString(),
-    };
-
-    const accessToken = this.jwtService.sign(tokenPayload, {
-      secret: this.configService.getOrThrow('JWT_ACCESS_TOKEN_SECRET'),
-      expiresIn: `${this.configService.getOrThrow('JWT_ACCESS_TOKEN_EXPIRATION_MS')}ms`,
-    });
-
-    const refreshToken = this.jwtService.sign(tokenPayload, {
-      secret: this.configService.getOrThrow('JWT_REFRESH_TOKEN_SECRET'),
-      expiresIn: `${this.configService.getOrThrow('JWT_REFRESH_TOKEN_EXPIRATION_MS')}ms`,
-    });
+    const { accessToken, refreshToken, expiresRefreshToken } =
+      await this.generateTokens(user);
 
     await this.userService.updateUser(
       { _id: user._id },
       { $set: { refreshToken: await hash(refreshToken, 10) } },
     );
 
-    response.cookie('Refresh', refreshToken, {
-      httpOnly: true,
-      secure: this.configService.get('NODE_ENV') === 'production',
-      expires: expiresRefreshToken,
-    });
+    this.setRefreshTokenCookie(response, refreshToken, expiresRefreshToken);
 
-    return response.status(200).json({
-      user: {
-        id: user._id,
-        email: user.email,
-      },
-      accessToken,
-    });
+    return this.sendLoginResponse(response, user, accessToken);
   }
 
   async verifyUser(email: string, password: string) {
@@ -87,6 +46,20 @@ export class AuthService {
     }
   }
 
+  async refresh(user: User, response: Response) {
+    const { accessToken, refreshToken, expiresRefreshToken } =
+      await this.generateTokens(user);
+
+    await this.userService.updateUser(
+      { _id: user._id },
+      { $set: { refreshToken: await hash(refreshToken, 10) } },
+    );
+
+    this.setRefreshTokenCookie(response, refreshToken, expiresRefreshToken);
+
+    return this.sendLoginResponse(response, user, accessToken);
+  }
+
   async verifyUserRefreshToken(refreshToken: string, userId: string) {
     try {
       const user = await this.userService.getUser({ _id: userId });
@@ -100,5 +73,57 @@ export class AuthService {
     } catch (error) {
       throw new UnauthorizedException('Refresh token is not valid.');
     }
+  }
+
+  private async generateTokens(user: User) {
+     
+    const expiresRefreshToken = new Date(
+      Date.now() +
+        parseInt(
+          this.configService.getOrThrow<string>(
+            'JWT_REFRESH_TOKEN_EXPIRATION_MS',
+          ),
+        ),
+    );
+
+    const tokenPayload: TokenPayload = { userId: user._id.toHexString() };
+
+    const accessToken = this.jwtService.sign(tokenPayload, {
+      secret: this.configService.getOrThrow('JWT_ACCESS_TOKEN_SECRET'),
+      expiresIn: `${this.configService.getOrThrow('JWT_ACCESS_TOKEN_EXPIRATION_MS')}ms`,
+    });
+
+    const refreshToken = this.jwtService.sign(tokenPayload, {
+      secret: this.configService.getOrThrow('JWT_REFRESH_TOKEN_SECRET'),
+      expiresIn: `${this.configService.getOrThrow('JWT_REFRESH_TOKEN_EXPIRATION_MS')}ms`,
+    });
+
+    return { accessToken, refreshToken, expiresRefreshToken };
+  }
+
+  private setRefreshTokenCookie(
+    response: Response,
+    refreshToken: string,
+    expiresRefreshToken: Date,
+  ) {
+    response.cookie('Refresh', refreshToken, {
+      httpOnly: true,
+      secure: this.configService.get('NODE_ENV') === 'production',
+      expires: expiresRefreshToken,
+    });
+  }
+
+  private sendLoginResponse(
+    response: Response,
+    user: User,
+    accessToken: string,
+  ) {
+    return response.status(200).json({
+      user: {
+        id: user._id,
+        email: user.email,
+      },
+      accessToken,
+    });
   }
 }

@@ -7,16 +7,17 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Controller('users')
 export class UsersController {
-    constructor(private readonly userService: UsersService) {}
+  constructor(private readonly userService: UsersService) {}
 
-    @Post()
-    async createUser(@Body() request: CreateUserRequest) {
-        await this.userService.create(request)
-    }
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  async createUser(@Body() request: CreateUserRequest) {
+    await this.userService.create(request);
+  }
 
-    @Get()
-    @UseGuards(JwtAuthGuard)
-    async getUsers() {
-        return this.userService.getUsers()
-    }
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  async getUsers() {
+    return this.userService.getUsers();
+  }
 }
