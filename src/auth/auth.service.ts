@@ -154,7 +154,7 @@ export class AuthService {
     response.cookie('Refresh', '', {
       httpOnly: true,
       secure: this.configService.get('NODE_ENV') === 'production',
-      expires: new Date(0),
+      expires: new Date(0), 
     });
   }
 }

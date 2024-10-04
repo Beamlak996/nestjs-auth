@@ -23,13 +23,8 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtRefreshAuthGuard)
   async logout(@CurrentUser() user: User, @Res() response: Response) {
-    try {
-      return await this.authService.logout(user, response);
-    } catch (error) {
-      return response
-        .status(error.getStatus())
-        .json({ message: error.message });
-    }
+    const result = await this.authService.logout(user, response);
+    return response.json(result); 
   }
 
   @Post('refresh')
