@@ -20,6 +20,18 @@ export class AuthController {
     await this.authService.login(user, response);
   }
 
+  @Post('logout')
+  @UseGuards(JwtRefreshAuthGuard)
+  async logout(@CurrentUser() user: User, @Res() response: Response) {
+    try {
+      return await this.authService.logout(user, response);
+    } catch (error) {
+      return response
+        .status(error.getStatus())
+        .json({ message: error.message });
+    }
+  }
+
   @Post('refresh')
   @UseGuards(JwtRefreshAuthGuard)
   async refreshToken(

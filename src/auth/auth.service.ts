@@ -30,6 +30,30 @@ export class AuthService {
     return this.sendLoginResponse(response, user, accessToken);
   }
 
+  async logout(user: User, response: Response) {
+    try {
+      const existingUser = await this.userService.getUser({ _id: user._id });
+      if (!existingUser) {
+        throw new UnauthorizedException('User not found.');
+      }
+
+      await this.userService.updateUser(
+        { _id: user._id },
+        { $unset: { refreshToken: '' } },
+      );
+
+      this.clearRefreshTokenCookie(response);
+
+      return {
+        success: true,
+        message: 'Logged out successfully',
+      };
+    } catch (error) {
+      console.error('Logout error:', error);
+      throw new UnauthorizedException('Logout failed.');
+    }
+  }
+
   async verifyUser(email: string, password: string) {
     try {
       const user = await this.userService.getUser({ email });
@@ -76,7 +100,6 @@ export class AuthService {
   }
 
   private async generateTokens(user: User) {
-     
     const expiresRefreshToken = new Date(
       Date.now() +
         parseInt(
@@ -124,6 +147,14 @@ export class AuthService {
         email: user.email,
       },
       accessToken,
+    });
+  }
+
+  private clearRefreshTokenCookie(response: Response) {
+    response.cookie('Refresh', '', {
+      httpOnly: true,
+      secure: this.configService.get('NODE_ENV') === 'production',
+      expires: new Date(0),
     });
   }
 }
